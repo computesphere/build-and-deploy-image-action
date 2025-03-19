@@ -53,15 +53,15 @@ jobs:
         uses: ncipollo/release-action@v1.16.0
         with:
           tag: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          artifacts: '${{ steps.artifact.outputs.artifact_filepath }}'
+          name: ${{ github.ref_name }}
+          artifacts: ${{ steps.artifact.outputs.artifact_filepath }}
           generateReleaseNotes: true
           artifactErrorsFailBuild: true
           allowUpdates: true
           omitBodyDuringUpdate: true
           omitNameDuringUpdate: true
           replacesArtifacts: true
-          token: '${{ secrets.GITHUB_TOKEN }}'
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push Major and Minor Tags
         run: |
@@ -71,6 +71,8 @@ jobs:
 
       - name: Publish to GitHub Actions Marketplace (Major Releases Only)
         if: endsWith(github.ref_name, '.0.0')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           MAJOR_VERSION=$(echo "${{ github.ref_name }}" | cut -d. -f1)  # Extract v1, v2, etc.
       
