@@ -1,0 +1,169 @@
+name: Build and Deploy Image to ComputeSphere
+description: GitHub Action to build and deploy an image to ComputeSphere
+author: "ComputeSphere"
+branding:
+  icon: upload-cloud
+  color: blue
+inputs:
+  mode:
+    description: "Specify the action mode: build-only, build-and-push, deploy-only, or build-and-deploy"
+    required: true
+    default: build-and-deploy
+  name:
+    description: "Full image name with tag (e.g., quay.io/computesphere/computesphere-nodejs-example:v0.0.1)"
+    required: true
+  account_id:
+    description: "ComputeSphere account ID"
+    required: false
+  token:
+    description: "ComputeSphere API token"
+    required: false
+  deployment_id:
+    description: Deployment ID for ComputeSphere
+    required: false
+  registry:
+    description: Container registry URL
+    required: false
+  type:
+    description: "Image type (private or public)"
+    required: false
+    default: public
+  provider:
+    description: Image provider (e.g., other, ecr, gcr)
+    required: false
+    default: other
+  username:
+    description: Registry username
+    required: false
+    default: ''
+  password:
+    description: Registry password
+    required: false
+    default: ''
+  dockerfile:
+    description: "Path to Dockerfile"
+    required: false
+    default: "Dockerfile"
+  extra_build_args:
+    description: "Additional build arguments"
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check Required Inputs
+      shell: bash
+      run: |
+        if [[ "${{ inputs.mode }}" == "deploy-only" && -z "${{ inputs.name }}" ]]; then
+          echo "❌ Error: image name is required in deploy-only mode."
+          exit 1
+        fi
+
+    - name: Validate Dockerfile Path
+      shell: bash
+      run: |
+        DOCKERFILE_PATH="${{ github.workspace }}/${{ inputs.dockerfile }}"
+        if [[ ! -f "$DOCKERFILE_PATH" ]]; then
+          echo "❌ Error: Dockerfile not found at $DOCKERFILE_PATH"
+          exit 1
+        fi
+        echo "✅ Dockerfile found at: $DOCKERFILE_PATH"
+
+    - name: Docker Login
+      if: inputs.mode == 'build-and-push' || inputs.mode == 'build-and-deploy'
+      shell: bash
+      run: |
+        echo "Logging into Docker Registry..."
+        echo "${{ inputs.password }}" | docker login "${{ inputs.registry }}" -u "${{ inputs.username }}" --password-stdin
+
+    - name: Build Docker Image
+      if: inputs.mode == 'build-only' || inputs.mode == 'build-and-push' || inputs.mode == 'build-and-deploy'
+      shell: bash
+      run: |
+        IMAGE_TAG="${{ inputs.name }}"
+        DOCKERFILE_PATH="${{ github.workspace }}/${{ inputs.dockerfile }}"
+
+        echo "Building Docker Image: $IMAGE_TAG"
+        if [[ -z "${{ inputs.extra_build_args }}" ]]; then
+          docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" .
+        else
+          docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" ${{ inputs.extra_build_args }} .
+        fi
+
+    - name: Push Docker Image
+      if: inputs.mode == 'build-and-push' || inputs.mode == 'build-and-deploy'
+      shell: bash
+      run: |
+        IMAGE_TAG="${{ inputs.name }}"
+        echo "Pushing Docker Image: $IMAGE_TAG"
+        docker push "$IMAGE_TAG"
+
+    - name: Deploy to ComputeSphere
+      if: inputs.mode == 'deploy-only' || inputs.mode == 'build-and-deploy'
+      shell: bash
+      run: |
+        DEPLOYMENT_ID="${{ inputs.deployment_id }}"
+        API_URL="https://api.computesphere.com/api/v1/deployments/$DEPLOYMENT_ID/image"
+        IMAGE_TAG="${{ inputs.name }}"
+
+        echo "Deploying Image: $IMAGE_TAG to ComputeSphere..."
+
+        JSON_PAYLOAD=$(jq -n \
+          --arg username "${{ inputs.username }}" \
+          --arg password "${{ inputs.password }}" \
+          --arg registry "${{ inputs.registry }}" \
+          --arg provider "${{ inputs.provider }}" \
+          --arg type "${{ inputs.type }}" \
+          --arg name "${{ inputs.name }}" \
+          '{image: {username: $username, password: $password, url: $registry, provider: $provider, type: $type, name: $name}}'
+        )
+
+        RESPONSE=$(curl -X PUT "$API_URL" \
+          -H "Content-Type: application/json" \
+          -H "X-User-Token: ${{ inputs.token }}" \
+          -H "X-Account-ID: ${{ inputs.account_id }}" \
+          -d "$JSON_PAYLOAD")
+
+        ERROR_CODE=$(echo "$RESPONSE" | jq '.error_code')
+        MESSAGE=$(echo "$RESPONSE" | jq -r '.message')
+
+        if [[ "$ERROR_CODE" == "0" ]]; then
+          DEPLOYMENT_NAME=$(echo "$RESPONSE" | jq -r '.data.deployment_name')
+          STATUS=$(echo "$RESPONSE" | jq -r '.data.status')
+          CREATED_AT=$(echo "$RESPONSE" | jq -r '.data.created_at')
+          SERVICE_NAME=$(echo "$RESPONSE" | jq -r '.data.service_name')
+          PROJECT_NAME=$(echo "$RESPONSE" | jq -r '.data.project_name')
+          ENV_NAME=$(echo "$RESPONSE" | jq -r '.data.environment.name')
+          SUB_DOMAIN=$(echo "$RESPONSE" | jq -r '.data.sub_domain')
+          CUSTOM_DOMAIN=$(echo "$RESPONSE" | jq -r '.data.custom_domain')
+          SPHERELET_COUNT=$(echo "$RESPONSE" | jq -r '.data.sphere_count')
+          AUTO_SCALING_ENABLED=$(echo "$RESPONSE" | jq -r '.data.auto_scaling_config.enabled')
+          IMAGE_NAME=$(echo "$RESPONSE" | jq -r '.data.image.name')
+          IMAGE_PROVIDER=$(echo "$RESPONSE" | jq -r '.data.image.provider')
+          IMAGE_URL=$(echo "$RESPONSE" | jq -r '.data.image.url')
+
+          echo -e "\n✅ Deployment Successful!"
+          echo "------------------------------------------"
+          echo "Deployment Name:    $DEPLOYMENT_NAME"
+          echo "Status:             $STATUS"
+          echo "Created At:         $CREATED_AT"
+          echo "Service Name:       $SERVICE_NAME"
+          echo "Project Name:       $PROJECT_NAME"
+          echo "Environment:        $ENV_NAME"
+          echo "Subdomain:          $SUB_DOMAIN"
+          [[ -n "$CUSTOM_DOMAIN" ]] && echo "Custom Domain:      $CUSTOM_DOMAIN"
+          echo "------------------------------------------"
+          echo "Scaling & Resources"
+          echo "Spherelet Count:    $SPHERELET_COUNT"
+          echo "Auto Scaling:       $AUTO_SCALING_ENABLED"
+          echo "------------------------------------------"
+          echo "Image Details"
+          echo "Image Name:         $IMAGE_NAME"
+          echo "Provider:           $IMAGE_PROVIDER"
+          echo "Registry URL:       $IMAGE_URL"
+          echo "------------------------------------------"
+        else
+          echo "❌ Deployment Failed: $MESSAGE"
+          exit 1
+        fi

@@ -1,0 +1,85 @@
+name: 'Release GitHub Action'
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all tags
+
+      - name: Extract Semantic Versioning
+        id: version
+        run: |
+          TAG="${{ github.ref_name }}"
+          echo "Full version: $TAG"
+
+          # Extract major and minor versions
+          MAJOR=$(echo "$TAG" | cut -d. -f1)   # v1
+          MINOR=$(echo "$TAG" | cut -d. -f1,2) # v1.2
+
+          echo "Major version: $MAJOR"
+          echo "Minor version: $MINOR"
+
+          echo "major_version=$MAJOR" >> $GITHUB_OUTPUT
+          echo "minor_version=$MINOR" >> $GITHUB_OUTPUT
+
+      - name: Create Artifact
+        id: artifact
+        run: |
+          mkdir release
+          _artifact_file="$(pwd)/release/${{ github.event.repository.name }}-${{ github.ref_name }}.tar.gz"
+          tar \
+            -zcvf "${_artifact_file}" \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.gitignore' \
+            --exclude 'release' \
+            .
+          echo "artifact_filepath=${_artifact_file}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1.16.0
+        with:
+          tag: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          artifacts: '${{ steps.artifact.outputs.artifact_filepath }}'
+          generateReleaseNotes: true
+          artifactErrorsFailBuild: true
+          allowUpdates: true
+          omitBodyDuringUpdate: true
+          omitNameDuringUpdate: true
+          replacesArtifacts: true
+          token: '${{ secrets.GITHUB_TOKEN }}'
+
+      - name: Push Major and Minor Tags
+        run: |
+          git tag -f ${{ steps.version.outputs.major_version }}
+          git tag -f ${{ steps.version.outputs.minor_version }}
+          git push --force origin ${{ steps.version.outputs.major_version }} ${{ steps.version.outputs.minor_version }}
+
+      - name: Publish to GitHub Actions Marketplace (Major Releases Only)
+        if: endsWith(github.ref_name, '.0.0')
+        run: |
+          MAJOR_VERSION=$(echo "${{ github.ref_name }}" | cut -d. -f1)  # Extract v1, v2, etc.
+      
+          # Ensure the major version tag is pushed
+          git tag -f $MAJOR_VERSION
+          git push --force origin $MAJOR_VERSION
+      
+          # Publish the major version to the GitHub Actions Marketplace
+          gh api --method POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            /repos/${{ github.repository }}/actions/publish-marketplace

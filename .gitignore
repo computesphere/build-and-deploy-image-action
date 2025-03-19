@@ -1,0 +1,41 @@
+# Ignore Node.js dependencies (if using JavaScript-based actions)
+node_modules/
+npm-debug.log
+yarn-error.log
+dist/
+
+# Ignore Python virtual environments (if applicable)
+venv/
+__pycache__/
+
+# Ignore MacOS system files
+.DS_Store
+
+# Ignore temporary files and logs
+*.log
+*.tmp
+
+# Ignore build artifacts
+*.out
+*.o
+*.a
+*.so
+*.swp
+
+# Ignore GitHub workflow temporary files
+.github/workflows/*.log
+
+# Ignore Docker-related files (if using a Docker-based action)
+docker-compose.override.yml
+.dockerignore
+
+# Ignore secrets or environment files (ensure sensitive data isn't committed)
+.env
+.env.local
+.env.development
+.env.production
+.secrets
+
+# Ignore Vim swap files
+*.swp
+*.swo
