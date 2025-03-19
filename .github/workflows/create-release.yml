@@ -68,20 +68,3 @@ jobs:
           git tag -f ${{ steps.version.outputs.major_version }}
           git tag -f ${{ steps.version.outputs.minor_version }}
           git push --force origin ${{ steps.version.outputs.major_version }} ${{ steps.version.outputs.minor_version }}
-
-      - name: Publish to GitHub Actions Marketplace (Major Releases Only)
-        if: endsWith(github.ref_name, '.0.0')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          MAJOR_VERSION=$(echo "${{ github.ref_name }}" | cut -d. -f1)  # Extract v1, v2, etc.
-      
-          # Ensure the major version tag is pushed
-          git tag -f $MAJOR_VERSION
-          git push --force origin $MAJOR_VERSION
-      
-          # Publish the major version to the GitHub Actions Marketplace
-          gh api --method POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            /repos/${{ github.repository }}/actions/publish-marketplace
