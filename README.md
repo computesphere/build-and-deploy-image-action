@@ -6,7 +6,6 @@
 
 This GitHub Action allows you to **build and deploy a container image** to your [ComputeSphere](https://computesphere.com) environment. It supports building, pushing, and deploying images with both public and private container registries.
 
-
 ---
 
 ## **Usage Examples**
@@ -133,20 +132,20 @@ This example **deploys a public image** to ComputeSphere.
 
 ## **Inputs Table**
 
-| Input              | Description                                                                                     | Required | Default            |
-| ------------------ | ----------------------------------------------------------------------------------------------- | -------- | ------------------ |
-| `mode`             | Specifies the action mode: `build-only`, `build-and-push`, `deploy-only`, or `build-and-deploy` | ✅ Yes   | `build-and-deploy` |
-| `name`             | Full image name with tag (e.g., `quay.io/computesphere/computesphere-nodejs-example:v0.0.1`)    | ✅ Yes   | -                  |
-| `account_id`       | ComputeSphere account ID (`X-Account-ID` header)                                                | ❌ No    | -                  |
-| `token`            | ComputeSphere API token (`X-User-Token` header)                                                 | ❌ No    | -                  |
-| `deployment_id`    | ComputeSphere Deployment ID                                                                     | ❌ No    | -                  |
-| `registry`         | Container registry URL (e.g., `quay.io`)                                                        | ✅ Yes   | -                  |
-| `provider`         | Image provider (`other`, `ecr`, `gcr`)                                                          | ❌ No    | `other`            |
-| `type`             | Image type (`private` or `public`)                                                              | ❌ No    | `public`           |
-| `username`         | Container registry username (for private images)                                                | ❌ No    | `''` (empty)       |
-| `password`         | Container registry password (for private images)                                                | ❌ No    | `''` (empty)       |
-| `dockerfile`       | Path to the Dockerfile                                                                          | ❌ No    | `Dockerfile`       |
-| `extra_build_args` | Additional build arguments for `docker build`                                                   | ❌ No    | `''` (empty)       |
+| Input              | Description                                                                                     | Required                                                                                | Default            |
+| ------------------ | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------ |
+| `mode`             | Specifies the action mode: `build-only`, `build-and-push`, `deploy-only`, or `build-and-deploy` | ✅ Always required                                                                      | `build-and-deploy` |
+| `name`             | Full image name with tag (e.g., `quay.io/computesphere/computesphere-nodejs-example:v0.0.1`)    | ✅ Required in `deploy-only`, `build-and-push`, and `build-and-deploy` modes            | -                  |
+| `account_id`       | ComputeSphere account ID (`X-Account-ID` header)                                                | ✅ Required if deploying (`deploy-only` or `build-and-deploy`)                          | -                  |
+| `token`            | ComputeSphere API token (`X-User-Token` header)                                                 | ✅ Required if deploying (`deploy-only` or `build-and-deploy`)                          | -                  |
+| `deployment_id`    | ComputeSphere Deployment ID                                                                     | ✅ Required if deploying (`deploy-only` or `build-and-deploy`)                          | -                  |
+| `registry`         | Container registry URL (e.g., `quay.io`)                                                        | ✅ Required if building or pushing (`build-only`, `build-and-push`, `build-and-deploy`) | -                  |
+| `provider`         | Image provider (`other`, `ecr`, `gcr`)                                                          | ❌ Optional                                                                             | `other`            |
+| `type`             | Image type (`private` or `public`)                                                              | ❌ Optional                                                                             | `public`           |
+| `username`         | Container registry username (for private images)                                                | ✅ Required if `type=private` when building or deploying                                | `''` (empty)       |
+| `password`         | Container registry password (for private images)                                                | ✅ Required if `type=private` when building or deploying                                | `''` (empty)       |
+| `dockerfile`       | Path to the Dockerfile                                                                          | ✅ Required if building (`build-only`, `build-and-push`, `build-and-deploy`)            | `Dockerfile`       |
+| `extra_build_args` | Additional build arguments for `docker build`                                                   | ❌ Optional                                                                             | `''` (empty)       |
 
 > **Note:** If `type` is `public`, `username` and `password` are ignored.
 
