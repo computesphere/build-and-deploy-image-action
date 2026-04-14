@@ -119,34 +119,51 @@ runs:
           '{image: {username: $username, password: $password, url: $registry, provider: $provider, type: $type, name: $name}}'
         )
 
-        RESPONSE=$(curl -X PUT "$API_URL" \
+        # Capture body + HTTP status on separate lines so we can use the
+        # status code as the ground-truth success signal. The ComputeSphere
+        # API uses a GitHub-style envelope (`.status: "success"|"error"`,
+        # `.data.*`, `.error.message`) as of August 2025; this script also
+        # accepts the legacy envelope (`.error_code == 0`, `.message`) as a
+        # fallback so older API versions keep working.
+        HTTP_RESPONSE=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" -X PUT "$API_URL" \
           -H "Content-Type: application/json" \
           -H "X-User-Token: ${{ inputs.token }}" \
           -H "X-Account-ID: ${{ inputs.account_id }}" \
           -d "$JSON_PAYLOAD")
 
-        ERROR_CODE=$(echo "$RESPONSE" | jq '.error_code')
-        MESSAGE=$(echo "$RESPONSE" | jq -r '.message')
+        HTTP_STATUS=$(printf '%s' "$HTTP_RESPONSE" | sed -n 's/^HTTP_STATUS://p' | tail -n1)
+        BODY=$(printf '%s' "$HTTP_RESPONSE" | sed '/^HTTP_STATUS:/d')
 
-        if [[ "$ERROR_CODE" == "0" ]]; then
-          DEPLOYMENT_NAME=$(echo "$RESPONSE" | jq -r '.data.deployment_name')
-          STATUS=$(echo "$RESPONSE" | jq -r '.data.status')
-          CREATED_AT=$(echo "$RESPONSE" | jq -r '.data.created_at')
-          SERVICE_NAME=$(echo "$RESPONSE" | jq -r '.data.service_name')
-          PROJECT_NAME=$(echo "$RESPONSE" | jq -r '.data.project_name')
-          ENV_NAME=$(echo "$RESPONSE" | jq -r '.data.environment.name')
-          SUB_DOMAIN=$(echo "$RESPONSE" | jq -r '.data.sub_domain')
-          CUSTOM_DOMAIN=$(echo "$RESPONSE" | jq -r '.data.custom_domain')
-          SPHERELET_COUNT=$(echo "$RESPONSE" | jq -r '.data.sphere_count')
-          AUTO_SCALING_ENABLED=$(echo "$RESPONSE" | jq -r '.data.auto_scaling_config.enabled')
-          IMAGE_NAME=$(echo "$RESPONSE" | jq -r '.data.image.name')
-          IMAGE_PROVIDER=$(echo "$RESPONSE" | jq -r '.data.image.provider')
-          IMAGE_URL=$(echo "$RESPONSE" | jq -r '.data.image.url')
+        # Envelope detection
+        STATUS=$(printf '%s' "$BODY" | jq -r '.status // empty' 2>/dev/null)
+        LEGACY_ERROR_CODE=$(printf '%s' "$BODY" | jq -r '.error_code // empty' 2>/dev/null)
+
+        IS_SUCCESS="false"
+        if [[ "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "201" ]]; then
+          if [[ "$STATUS" == "success" || "$LEGACY_ERROR_CODE" == "0" ]]; then
+            IS_SUCCESS="true"
+          fi
+        fi
+
+        if [[ "$IS_SUCCESS" == "true" ]]; then
+          DEPLOYMENT_NAME=$(printf '%s' "$BODY" | jq -r '.data.deployment_name // empty')
+          DEPLOY_STATUS=$(printf '%s' "$BODY" | jq -r '.data.status // empty')
+          CREATED_AT=$(printf '%s' "$BODY" | jq -r '.data.created_at // empty')
+          SERVICE_NAME=$(printf '%s' "$BODY" | jq -r '.data.service_name // empty')
+          PROJECT_NAME=$(printf '%s' "$BODY" | jq -r '.data.project_name // empty')
+          ENV_NAME=$(printf '%s' "$BODY" | jq -r '.data.environment.name // empty')
+          SUB_DOMAIN=$(printf '%s' "$BODY" | jq -r '.data.sub_domain // empty')
+          CUSTOM_DOMAIN=$(printf '%s' "$BODY" | jq -r '.data.custom_domain // empty')
+          SPHERELET_COUNT=$(printf '%s' "$BODY" | jq -r '.data.sphere_count // empty')
+          AUTO_SCALING_ENABLED=$(printf '%s' "$BODY" | jq -r '.data.auto_scaling_config.enabled // empty')
+          IMAGE_NAME=$(printf '%s' "$BODY" | jq -r '.data.image.name // empty')
+          IMAGE_PROVIDER=$(printf '%s' "$BODY" | jq -r '.data.image.provider // empty')
+          IMAGE_URL=$(printf '%s' "$BODY" | jq -r '.data.image.url // empty')
 
           echo -e "\n✅ Deployment Successful!"
           echo "------------------------------------------"
           echo "Deployment Name:    $DEPLOYMENT_NAME"
-          echo "Status:             $STATUS"
+          echo "Status:             $DEPLOY_STATUS"
           echo "Created At:         $CREATED_AT"
           echo "Service Name:       $SERVICE_NAME"
           echo "Project Name:       $PROJECT_NAME"
@@ -164,6 +181,16 @@ runs:
           echo "Registry URL:       $IMAGE_URL"
           echo "------------------------------------------"
         else
-          echo "❌ Deployment Failed: $MESSAGE"
+          # Try the new envelope's nested error first, fall back to legacy
+          # top-level .message, finally a generic fallback so we never print
+          # a bare "null".
+          ERROR_MESSAGE=$(printf '%s' "$BODY" | jq -r '.error.message // .message // "Unknown error"' 2>/dev/null)
+          if [[ -z "$ERROR_MESSAGE" || "$ERROR_MESSAGE" == "null" ]]; then
+            ERROR_MESSAGE="Unknown error"
+          fi
+          echo "❌ Deployment Failed (HTTP ${HTTP_STATUS:-unknown}): $ERROR_MESSAGE"
+          echo ""
+          echo "Full response body:"
+          printf '%s\n' "$BODY" | jq . 2>/dev/null || printf '%s\n' "$BODY"
           exit 1
         fi
