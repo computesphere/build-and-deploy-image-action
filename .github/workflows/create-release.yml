@@ -3,7 +3,11 @@ name: 'Release GitHub Action'
 on:
   push:
     tags:
-      - 'v*'
+      # Full semver only (vX.Y.Z). The release job force-pushes the moving
+      # `v1` / `v1.0` tags at the end; matching only X.Y.Z stops those pushes
+      # from re-triggering this workflow — a `v1` re-trigger made MAJOR==MINOR
+      # and failed with "dst ref refs/tags/v1 receives from more than one src".
+      - 'v*.*.*'
 
 permissions:
   contents: write
@@ -15,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0  # Fetch all tags
 
@@ -50,7 +54,7 @@ jobs:
           echo "artifact_filepath=${_artifact_file}" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: ncipollo/release-action@v1.16.0
+        uses: ncipollo/release-action@v1.21.0
         with:
           tag: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
