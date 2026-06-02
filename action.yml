@@ -104,7 +104,7 @@ runs:
       shell: bash
       run: |
         DEPLOYMENT_ID="${{ inputs.deployment_id }}"
-        API_URL="https://api.computesphere.com/api/v1/deployments/$DEPLOYMENT_ID/image"
+        API_URL="https://api.computesphere.com/v1/deployments/$DEPLOYMENT_ID/image"
         IMAGE_TAG="${{ inputs.name }}"
 
         echo "Deploying Image: $IMAGE_TAG to ComputeSphere..."
