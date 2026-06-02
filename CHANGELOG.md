@@ -9,6 +9,18 @@ ComputeSphere Build and Deploy Image Action follows [Semantic Versioning](https:
 
 ---
 
+## **[v1.0.3] - 2026-06-02**  
+### Fixed  
+- Deploy step now calls `/v1/deployments/{id}/image`. The ComputeSphere API dropped the `/api` prefix from its versioned endpoints (`/api/v1` → `/v1`), so the previous path returned **404** and failed the **Deploy to ComputeSphere** step.  
+
+## **[v1.0.2] - 2026-04-14**  
+### Fixed  
+- Reworked the deploy step to use the **HTTP status code** as the success signal, parse the current response envelope defensively (missing fields no longer render as the literal string `"null"`), accept `201 Created` alongside `200 OK`, and print the full response body on failure.  
+
+## **[v1.0.1] - 2025-03-19**  
+### Documentation  
+- README updates.  
+
 ## **[v1.0.0] - 2025-03-19**  
 ### Initial Release  
 - Supports **building**, **pushing**, and **deploying** private and public container images to ComputeSphere.  
