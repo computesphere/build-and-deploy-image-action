@@ -22,7 +22,7 @@ This example **builds and deploys a private image** from a container registry th
     mode: build-and-deploy
     name: ${{ vars.IMAGE }}
     account_id: ${{ vars.COMPUTESPHERE_ACCOUNT_ID }}
-    token: ${{ vars.COMPUTESPHERE_API_TOKEN }}
+    token: ${{ secrets.COMPUTESPHERE_API_TOKEN }}
     deployment_id: ${{ vars.DEPLOYMENT_ID }}
     registry: ${{ vars.REGISTRY }}
     type: private
@@ -42,7 +42,7 @@ This example **builds and deploys a public image** to a public container registr
     mode: build-and-deploy
     name: ${{ vars.IMAGE }}
     account_id: ${{ vars.COMPUTESPHERE_ACCOUNT_ID }}
-    token: ${{ vars.COMPUTESPHERE_API_TOKEN }}
+    token: ${{ secrets.COMPUTESPHERE_API_TOKEN }}
     deployment_id: ${{ vars.DEPLOYMENT_ID }}
     registry: ${{ vars.REGISTRY }}
 ```
@@ -137,7 +137,7 @@ This example **deploys a public image** to ComputeSphere.
 | `mode`             | Specifies the action mode: `build-only`, `build-and-push`, `deploy-only`, or `build-and-deploy` | ✅ Always required                                                                      | `build-and-deploy` |
 | `name`             | Full image name with tag (e.g., `quay.io/computesphere/computesphere-nodejs-example:v0.0.1`)    | ✅ Required in `deploy-only`, `build-and-push`, and `build-and-deploy` modes            | -                  |
 | `account_id`       | ComputeSphere account ID (`X-Account-ID` header)                                                | ✅ Required if deploying (`deploy-only` or `build-and-deploy`)                          | -                  |
-| `token`            | ComputeSphere API token (`X-User-Token` header)                                                 | ✅ Required if deploying (`deploy-only` or `build-and-deploy`)                          | -                  |
+| `token`            | ComputeSphere API token (`csph_…`), sent as `Authorization: Bearer`. Store it as a secret                                                 | ✅ Required if deploying (`deploy-only` or `build-and-deploy`)                          | -                  |
 | `deployment_id`    | ComputeSphere Deployment ID                                                                     | ✅ Required if deploying (`deploy-only` or `build-and-deploy`)                          | -                  |
 | `registry`         | Container registry URL (e.g., `quay.io`)                                                        | ✅ Required if building or pushing (`build-only`, `build-and-push`, `build-and-deploy`) | -                  |
 | `provider`         | Image provider (`other`, `ecr`, `gcr`)                                                          | ❌ Optional                                                                             | `other`            |
