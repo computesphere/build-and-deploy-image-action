@@ -71,10 +71,15 @@ if [[ "$status" == "200" ]]; then
   exit 0
 fi
 
-message=$(field '.error.message')
+# The API answers errors as problem details: the sentence is in "detail".
+message=$(field '.detail')
+[[ -n "$message" ]] || message=$(field '.error.message')
 [[ -n "$message" ]] || message=$(field '.message')
+[[ -n "$message" ]] || message=$(field '.title')
 [[ -n "$message" ]] || message="no message in the answer"
 echo "Deploy failed (HTTP ${status:-unknown}): $message"
+request_id=$(field '.request_id')
+[[ -z "$request_id" ]] || echo "Request id: $request_id (quote it if you contact support)"
 case "$status" in
   401) echo "The API token was rejected. Use a ComputeSphere API token (it starts with csph_), stored as a secret and passed as 'token'." ;;
   403) echo "The token is not allowed to change this deployment. Check the token's access and the project's rules for automated changes." ;;

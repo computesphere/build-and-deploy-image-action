@@ -23,7 +23,9 @@ class Handler(BaseHTTPRequestHandler):
                        "user_agent": self.headers.get("User-Agent"),
                        "body": json.loads(body)}, f)
         if "refused" in self.path:
-            code, answer = 403, {"error": {"message": "This change needs approval."}}
+            code, answer = 403, {"type": "https://docs.computesphere.com/errors/forbidden", "title": "Forbidden",
+                                 "status": 403, "code": "forbidden", "detail": "This change needs approval.",
+                                 "request_id": "req-123"}
         else:
             code, answer = 200, {"object": "deployment", "id": "dep-1", "type": "web-service",
                                  "name": "api", "status": "Deploying"}
@@ -87,6 +89,7 @@ if CS_DEPLOYMENT_ID="refused" CS_IMAGE_NAME="app:1" bash "$here/deploy.sh" > "$w
 fi
 grep -q "HTTP 403" "$work/out3.txt" || fail "the status is not reported"
 grep -q "This change needs approval." "$work/out3.txt" || fail "the platform's message is not printed"
+grep -q "req-123" "$work/out3.txt" || fail "the request id is not printed"
 
 # 4. A missing input is reported before any request.
 rm -f "$work/request.json"
