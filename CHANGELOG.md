@@ -9,6 +9,16 @@ ComputeSphere Build and Deploy Image Action follows [Semantic Versioning](https:
 
 ---
 
+## **[v1.0.5] - unreleased**  
+### Changed  
+- The deploy step now updates the image through the current API version: `PATCH /v2/deployments/{id}`. The older `PUT /v1/deployments/{id}/image` is being retired. Inputs are unchanged, so a workflow on `@v1` needs no edit.  
+- An empty `registry`, `username` or `password` is left out of the request, so the registry credentials saved on the deployment are kept when only the image name or tag changes.  
+- Inputs reach the deploy step through the environment and are no longer spliced into the script, so a value with a quote or a space is passed as it is.  
+- A refused deploy fails the step and prints the platform's message.  
+### Added  
+- `api_url` input (default `https://api.computesphere.com/v2`).  
+- `scripts/test.sh` and a Test workflow: the deploy step is run against a stand-in API on every pull request.  
+
 ## **[v1.0.3] - 2026-06-02**  
 ### Fixed  
 - Deploy step now calls `/v1/deployments/{id}/image`. The ComputeSphere API dropped the `/api` prefix from its versioned endpoints (`/api/v1` → `/v1`), so the previous path returned **404** and failed the **Deploy to ComputeSphere** step.  
