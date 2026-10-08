@@ -48,6 +48,10 @@ inputs:
     description: "Additional build arguments"
     required: false
     default: ''
+  api_url:
+    description: "ComputeSphere API base URL. Leave unset unless ComputeSphere support asks you to change it."
+    required: false
+    default: "https://api.computesphere.com/v2"
 
 runs:
   using: "composite"
@@ -103,103 +107,15 @@ runs:
       if: inputs.mode == 'deploy-only' || inputs.mode == 'build-and-deploy'
       shell: bash
       env:
+        CS_API_URL: ${{ inputs.api_url }}
         CS_API_TOKEN: ${{ inputs.token }}
         CS_ACCOUNT_ID: ${{ inputs.account_id }}
-      run: |
-        DEPLOYMENT_ID="${{ inputs.deployment_id }}"
-        API_URL="https://api.computesphere.com/v1/deployments/$DEPLOYMENT_ID/image"
-        IMAGE_TAG="${{ inputs.name }}"
-
-        echo "Deploying Image: $IMAGE_TAG to ComputeSphere..."
-
-        JSON_PAYLOAD=$(jq -n \
-          --arg username "${{ inputs.username }}" \
-          --arg password "${{ inputs.password }}" \
-          --arg registry "${{ inputs.registry }}" \
-          --arg provider "${{ inputs.provider }}" \
-          --arg type "${{ inputs.type }}" \
-          --arg name "${{ inputs.name }}" \
-          '{image: {username: $username, password: $password, url: $registry, provider: $provider, type: $type, name: $name}}'
-        )
-
-        # Capture body + HTTP status on separate lines so we can use the
-        # status code as the ground-truth success signal. The ComputeSphere
-        # API uses a GitHub-style envelope (`.status: "success"|"error"`,
-        # `.data.*`, `.error.message`) as of August 2025; this script also
-        # accepts the legacy envelope (`.error_code == 0`, `.message`) as a
-        # fallback so older API versions keep working.
-        #
-        # Authenticates with "Authorization: Bearer <token>" (a csph_ API
-        # token). The API no longer accepts the old X-User-Token header.
-        HTTP_RESPONSE=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" -X PUT "$API_URL" \
-          -H "Content-Type: application/json" \
-          -H "Authorization: Bearer $CS_API_TOKEN" \
-          -H "X-Account-ID: $CS_ACCOUNT_ID" \
-          -d "$JSON_PAYLOAD")
-
-        HTTP_STATUS=$(printf '%s' "$HTTP_RESPONSE" | sed -n 's/^HTTP_STATUS://p' | tail -n1)
-        BODY=$(printf '%s' "$HTTP_RESPONSE" | sed '/^HTTP_STATUS:/d')
-
-        # Envelope detection
-        STATUS=$(printf '%s' "$BODY" | jq -r '.status // empty' 2>/dev/null)
-        LEGACY_ERROR_CODE=$(printf '%s' "$BODY" | jq -r '.error_code // empty' 2>/dev/null)
-
-        IS_SUCCESS="false"
-        if [[ "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "201" ]]; then
-          if [[ "$STATUS" == "success" || "$LEGACY_ERROR_CODE" == "0" ]]; then
-            IS_SUCCESS="true"
-          fi
-        fi
-
-        if [[ "$IS_SUCCESS" == "true" ]]; then
-          DEPLOYMENT_NAME=$(printf '%s' "$BODY" | jq -r '.data.deployment_name // empty')
-          DEPLOY_STATUS=$(printf '%s' "$BODY" | jq -r '.data.status // empty')
-          CREATED_AT=$(printf '%s' "$BODY" | jq -r '.data.created_at // empty')
-          SERVICE_NAME=$(printf '%s' "$BODY" | jq -r '.data.service_name // empty')
-          PROJECT_NAME=$(printf '%s' "$BODY" | jq -r '.data.project_name // empty')
-          ENV_NAME=$(printf '%s' "$BODY" | jq -r '.data.environment.name // empty')
-          SUB_DOMAIN=$(printf '%s' "$BODY" | jq -r '.data.sub_domain // empty')
-          CUSTOM_DOMAIN=$(printf '%s' "$BODY" | jq -r '.data.custom_domain // empty')
-          SPHERELET_COUNT=$(printf '%s' "$BODY" | jq -r '.data.sphere_count // empty')
-          AUTO_SCALING_ENABLED=$(printf '%s' "$BODY" | jq -r '.data.auto_scaling_config.enabled // empty')
-          IMAGE_NAME=$(printf '%s' "$BODY" | jq -r '.data.image.name // empty')
-          IMAGE_PROVIDER=$(printf '%s' "$BODY" | jq -r '.data.image.provider // empty')
-          IMAGE_URL=$(printf '%s' "$BODY" | jq -r '.data.image.url // empty')
-
-          echo -e "\n✅ Deployment Successful!"
-          echo "------------------------------------------"
-          echo "Deployment Name:    $DEPLOYMENT_NAME"
-          echo "Status:             $DEPLOY_STATUS"
-          echo "Created At:         $CREATED_AT"
-          echo "Service Name:       $SERVICE_NAME"
-          echo "Project Name:       $PROJECT_NAME"
-          echo "Environment:        $ENV_NAME"
-          echo "Subdomain:          $SUB_DOMAIN"
-          [[ -n "$CUSTOM_DOMAIN" ]] && echo "Custom Domain:      $CUSTOM_DOMAIN"
-          echo "------------------------------------------"
-          echo "Scaling & Resources"
-          echo "Spherelet Count:    $SPHERELET_COUNT"
-          echo "Auto Scaling:       $AUTO_SCALING_ENABLED"
-          echo "------------------------------------------"
-          echo "Image Details"
-          echo "Image Name:         $IMAGE_NAME"
-          echo "Provider:           $IMAGE_PROVIDER"
-          echo "Registry URL:       $IMAGE_URL"
-          echo "------------------------------------------"
-        else
-          # Try the new envelope's nested error first, fall back to legacy
-          # top-level .message, finally a generic fallback so we never print
-          # a bare "null".
-          ERROR_MESSAGE=$(printf '%s' "$BODY" | jq -r '.error.message // .message // "Unknown error"' 2>/dev/null)
-          if [[ -z "$ERROR_MESSAGE" || "$ERROR_MESSAGE" == "null" ]]; then
-            ERROR_MESSAGE="Unknown error"
-          fi
-          echo "❌ Deployment Failed (HTTP ${HTTP_STATUS:-unknown}): $ERROR_MESSAGE"
-          if [[ "$HTTP_STATUS" == "401" ]]; then
-            echo "The API token was rejected. Use a ComputeSphere API token (it starts with csph_) with access to this deployment, stored as a secret and passed as 'token'."
-          fi
-          echo ""
-          echo "Full response body:"
-          printf '%s\n' "$BODY" | jq . 2>/dev/null || printf '%s\n' "$BODY"
-          exit 1
-        fi
+        CS_DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+        CS_IMAGE_NAME: ${{ inputs.name }}
+        CS_IMAGE_TYPE: ${{ inputs.type }}
+        CS_IMAGE_PROVIDER: ${{ inputs.provider }}
+        CS_REGISTRY_URL: ${{ inputs.registry }}
+        CS_REGISTRY_USERNAME: ${{ inputs.username }}
+        CS_REGISTRY_PASSWORD: ${{ inputs.password }}
+        CS_USER_AGENT: computesphere-build-and-deploy-image-action
+      run: bash "${{ github.action_path }}/scripts/deploy.sh"
