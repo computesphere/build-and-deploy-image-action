@@ -10,9 +10,16 @@ ComputeSphere Build and Deploy Image Action follows [Semantic Versioning](https:
 ---
 
 ## **[Unreleased]**  
+### Changed  
+- The deploy step now updates the image through the current API version: `PATCH /v2/deployments/{id}`. The older `PUT /v1/deployments/{id}/image` is being retired. Inputs are unchanged, so a workflow on `@v1` needs no edit.  
+- An empty `registry`, `username` or `password` is left out of the request, so the registry credentials saved on the deployment are kept when only the image name or tag changes.  
+- Inputs reach the deploy step through the environment and are no longer spliced into the script, so a value with a quote or a space is passed as it is.  
+- A refused deploy fails the step and prints the platform's message.  
 ### Added  
 - **Node.js version check**: after building, the action runs `node -v` in the image and warns before push or deploy when it is below the security floor for the [November 11, 2026 Node.js security release](https://nodejs.org/en/blog/vulnerability/november-2026-security-releases) (22.23.5, 24.22.3, 26.13.1, which include the October 21, 2026 fix for CVE-2026-111497; Node.js 20 and older and the odd release lines are flagged too). Images without Node.js are skipped. **In v1 it warns by default and the build goes on; set `fail-on-vulnerable-node: true` to enforce.** New inputs `node-version-check` (default `true`; `false` skips the check), `fail-on-vulnerable-node` (default `false`) and `node-version-floors`.  
 - New input `pull` (default `false`): set `pull: true` to run `docker build --pull`, so floating base tags such as `node:22-alpine` are refreshed on every build instead of reusing a cached, possibly vulnerable base. Recommended; off by default so a Dockerfile that builds `FROM` a local-only image keeps working.  
+- `api_url` input (default `https://api.computesphere.com/v2`).  
+- `scripts/test.sh` and a Test workflow: the deploy step is run against a stand-in API on every pull request.  
 
 ## **[v1.0.3] - 2026-06-02**  
 ### Fixed  
