@@ -151,7 +151,14 @@ This example **deploys a public image** to ComputeSphere.
 
 ---
 
-<a href="https://console.computesphere.com"> <img src="https://cdn.sanity.io/images/5jct4wv7/production/a3a823db7833f9274fc723b1223084b51c7ed160-1103x160.png" width="350px" alt="ComputeSphere Logo"> </a>
+<p>
+<a href="https://console.computesphere.com">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-full-dark.svg">
+    <img src="assets/logo-full-light.svg" width="350" alt="ComputeSphere">
+  </picture>
+</a>
+</p>
 
 [Explore ComputeSphere Documentation](https://docs.computesphere.com)
 [GitHub Actions Guide](https://docs.github.com/en/actions)
