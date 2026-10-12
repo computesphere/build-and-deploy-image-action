@@ -65,6 +65,7 @@ runs:
         fi
 
     - name: Validate Dockerfile Path
+      if: inputs.mode != 'deploy-only'
       shell: bash
       run: |
         DOCKERFILE_PATH="${{ github.workspace }}/${{ inputs.dockerfile }}"
