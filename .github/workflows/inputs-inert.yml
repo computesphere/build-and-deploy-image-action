@@ -1,0 +1,49 @@
+# Every input reaches the action's shell steps as data, never as code:
+# a quote, $(...) or a backtick in an input must not run anything.
+name: Inputs are inert
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  inert:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        input: [mode, name, dockerfile, extra_build_args, registry, username, password]
+    env:
+      PAYLOAD: >-
+        x"; touch /tmp/pwned-quote; echo "$(touch /tmp/pwned-subst)`touch /tmp/pwned-tick`
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the action with the payload in ${{ matrix.input }}
+        uses: ./
+        continue-on-error: true
+        with:
+          mode: ${{ matrix.input == 'mode' && env.PAYLOAD || (contains(fromJSON('["registry","username","password"]'), matrix.input) && 'build-and-push' || 'build-only') }}
+          name: ${{ matrix.input == 'name' && env.PAYLOAD || 'inert-test:local' }}
+          dockerfile: ${{ matrix.input == 'dockerfile' && env.PAYLOAD || 'test/Dockerfile' }}
+          extra_build_args: ${{ matrix.input == 'extra_build_args' && env.PAYLOAD || '--build-arg A=1 --build-arg B=2' }}
+          registry: ${{ matrix.input == 'registry' && env.PAYLOAD || 'localhost:1' }}
+          username: ${{ matrix.input == 'username' && env.PAYLOAD || 'user' }}
+          password: ${{ matrix.input == 'password' && env.PAYLOAD || 'pass' }}
+      - name: Nothing in the payload ran
+        run: |
+          for f in /tmp/pwned-quote /tmp/pwned-subst /tmp/pwned-tick; do
+            if [[ -e "$f" ]]; then echo "::error::the payload in ${{ matrix.input }} ran code ($f exists)"; exit 1; fi
+          done
+          echo "inert: ${{ matrix.input }}"
+  builds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with two build args
+        uses: ./
+        with:
+          mode: build-only
+          name: inert-test:local
+          dockerfile: test/Dockerfile
+          extra_build_args: --build-arg A=1 --build-arg B=2
