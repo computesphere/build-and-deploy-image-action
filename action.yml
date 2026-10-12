@@ -54,16 +54,22 @@ runs:
   steps:
     - name: Check Required Inputs
       shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        NAME: ${{ inputs.name }}
       run: |
-        if [[ "${{ inputs.mode }}" == "deploy-only" && -z "${{ inputs.name }}" ]]; then
+        if [[ "$MODE" == "deploy-only" && -z "$NAME" ]]; then
           echo "❌ Error: image name is required in deploy-only mode."
           exit 1
         fi
 
     - name: Validate Dockerfile Path
+      if: inputs.mode != 'deploy-only'
       shell: bash
+      env:
+        DOCKERFILE: ${{ inputs.dockerfile }}
       run: |
-        DOCKERFILE_PATH="${{ github.workspace }}/${{ inputs.dockerfile }}"
+        DOCKERFILE_PATH="$GITHUB_WORKSPACE/$DOCKERFILE"
         if [[ ! -f "$DOCKERFILE_PATH" ]]; then
           echo "❌ Error: Dockerfile not found at $DOCKERFILE_PATH"
           exit 1
@@ -73,29 +79,35 @@ runs:
     - name: Docker Login
       if: inputs.mode == 'build-and-push' || inputs.mode == 'build-and-deploy'
       shell: bash
+      env:
+        REGISTRY: ${{ inputs.registry }}
+        REGISTRY_USERNAME: ${{ inputs.username }}
+        REGISTRY_PASSWORD: ${{ inputs.password }}
       run: |
         echo "Logging into Docker Registry..."
-        echo "${{ inputs.password }}" | docker login "${{ inputs.registry }}" -u "${{ inputs.username }}" --password-stdin
+        printf '%s' "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
 
     - name: Build Docker Image
       if: inputs.mode == 'build-only' || inputs.mode == 'build-and-push' || inputs.mode == 'build-and-deploy'
       shell: bash
+      env:
+        IMAGE_TAG: ${{ inputs.name }}
+        DOCKERFILE: ${{ inputs.dockerfile }}
+        EXTRA_BUILD_ARGS: ${{ inputs.extra_build_args }}
       run: |
-        IMAGE_TAG="${{ inputs.name }}"
-        DOCKERFILE_PATH="${{ github.workspace }}/${{ inputs.dockerfile }}"
+        DOCKERFILE_PATH="$GITHUB_WORKSPACE/$DOCKERFILE"
+        # Split on whitespace into separate arguments; nothing in it is run.
+        read -r -a BUILD_ARGS <<< "$EXTRA_BUILD_ARGS"
 
         echo "Building Docker Image: $IMAGE_TAG"
-        if [[ -z "${{ inputs.extra_build_args }}" ]]; then
-          docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" .
-        else
-          docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" ${{ inputs.extra_build_args }} .
-        fi
+        docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" "${BUILD_ARGS[@]}" .
 
     - name: Push Docker Image
       if: inputs.mode == 'build-and-push' || inputs.mode == 'build-and-deploy'
       shell: bash
+      env:
+        IMAGE_TAG: ${{ inputs.name }}
       run: |
-        IMAGE_TAG="${{ inputs.name }}"
         echo "Pushing Docker Image: $IMAGE_TAG"
         docker push "$IMAGE_TAG"
 

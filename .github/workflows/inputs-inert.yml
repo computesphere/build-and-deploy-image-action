@@ -1,0 +1,55 @@
+# Every input reaches the action's shell steps as data, never as code:
+# a quote, $(...) or a backtick in an input must not run anything.
+name: Inputs are inert
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  inert:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        input: [mode, name, dockerfile, extra_build_args, registry, username, password]
+        # One way of breaking out per run, so a syntax error from one can't
+        # hide another.
+        payload:
+          - 'x"; touch /tmp/pwned; echo "'
+          - '$(touch /tmp/pwned)'
+          - '`touch /tmp/pwned`'
+    env:
+      PAYLOAD: ${{ matrix.payload }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the action with a payload in ${{ matrix.input }}
+        uses: ./
+        continue-on-error: true
+        with:
+          mode: ${{ matrix.input == 'mode' && env.PAYLOAD || (contains(fromJSON('["registry","username","password"]'), matrix.input) && 'build-and-push' || 'build-only') }}
+          name: ${{ matrix.input == 'name' && env.PAYLOAD || 'inert-test:local' }}
+          dockerfile: ${{ matrix.input == 'dockerfile' && env.PAYLOAD || 'test/Dockerfile' }}
+          extra_build_args: ${{ matrix.input == 'extra_build_args' && env.PAYLOAD || '--build-arg A=1 --build-arg B=2' }}
+          registry: ${{ matrix.input == 'registry' && env.PAYLOAD || 'localhost:1' }}
+          username: ${{ matrix.input == 'username' && env.PAYLOAD || 'user' }}
+          password: ${{ matrix.input == 'password' && env.PAYLOAD || 'pass' }}
+      - name: Nothing in the payload ran
+        run: |
+          if [[ -e /tmp/pwned ]]; then
+            echo "::error::a payload in ${{ matrix.input }} ran code"
+            exit 1
+          fi
+          echo "inert: ${{ matrix.input }}"
+  builds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with two build args
+        uses: ./
+        with:
+          mode: build-only
+          name: inert-test:local
+          dockerfile: test/Dockerfile
+          extra_build_args: --build-arg A=1 --build-arg B=2
