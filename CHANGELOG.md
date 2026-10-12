@@ -15,6 +15,8 @@ ComputeSphere Build and Deploy Image Action follows [Semantic Versioning](https:
 - An empty `registry`, `username` or `password` is left out of the request, so the registry credentials saved on the deployment are kept when only the image name or tag changes.  
 - Inputs reach the deploy step through the environment and are no longer spliced into the script, so a value with a quote or a space is passed as it is.  
 - A refused deploy fails the step and prints the platform's message.  
+### Fixed  
+- `deploy-only` no longer requires a Dockerfile in the workspace.  
 ### Added  
 - `api_url` input (default `https://api.computesphere.com/v2`).  
 - `scripts/test.sh` and a Test workflow: the deploy step is run against a stand-in API on every pull request.  
