@@ -14,12 +14,17 @@ jobs:
       fail-fast: false
       matrix:
         input: [mode, name, dockerfile, extra_build_args, registry, username, password]
+        # One way of breaking out per run, so a syntax error from one can't
+        # hide another.
+        payload:
+          - 'x"; touch /tmp/pwned; echo "'
+          - '$(touch /tmp/pwned)'
+          - '`touch /tmp/pwned`'
     env:
-      PAYLOAD: >-
-        x"; touch /tmp/pwned-quote; echo "$(touch /tmp/pwned-subst)`touch /tmp/pwned-tick`
+      PAYLOAD: ${{ matrix.payload }}
     steps:
       - uses: actions/checkout@v4
-      - name: Run the action with the payload in ${{ matrix.input }}
+      - name: Run the action with a payload in ${{ matrix.input }}
         uses: ./
         continue-on-error: true
         with:
@@ -32,9 +37,10 @@ jobs:
           password: ${{ matrix.input == 'password' && env.PAYLOAD || 'pass' }}
       - name: Nothing in the payload ran
         run: |
-          for f in /tmp/pwned-quote /tmp/pwned-subst /tmp/pwned-tick; do
-            if [[ -e "$f" ]]; then echo "::error::the payload in ${{ matrix.input }} ran code ($f exists)"; exit 1; fi
-          done
+          if [[ -e /tmp/pwned ]]; then
+            echo "::error::a payload in ${{ matrix.input }} ran code"
+            exit 1
+          fi
           echo "inert: ${{ matrix.input }}"
   builds:
     runs-on: ubuntu-latest
