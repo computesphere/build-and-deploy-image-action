@@ -160,7 +160,7 @@ This example **deploys a public image** to ComputeSphere.
 </a>
 </p>
 
-[Explore ComputeSphere Documentation](https://docs.computesphere.com)
+[Explore ComputeSphere Documentation](https://computesphere.com/docs)
 [GitHub Actions Guide](https://docs.github.com/en/actions)
 
 **Contact Us:**  
