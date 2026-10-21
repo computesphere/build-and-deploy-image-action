@@ -48,6 +48,22 @@ inputs:
     description: "Additional build arguments"
     required: false
     default: ''
+  pull:
+    description: "Pull a fresh copy of every base image on each build (docker build --pull), so floating tags such as node:22-alpine pick up security releases. Recommended: true. Off by default so a Dockerfile that builds FROM an image that exists only in the local Docker cache keeps working"
+    required: false
+    default: 'false'
+  node-version-check:
+    description: "After building, check the image's Node.js version against the security floor (images without Node.js are skipped). Warns by default; set to false to skip the check"
+    required: false
+    default: 'true'
+  fail-on-vulnerable-node:
+    description: "Fail the build (before push or deploy) when the Node.js version check finds a version below the floor or cannot run. Default false: the check only warns"
+    required: false
+    default: 'false'
+  node-version-floors:
+    description: "Override the Node.js floor table: minimum versions, one per release line, separated by spaces or commas (e.g. '22.23.4 24.22.1 26.12.1'). Empty uses the table in scripts/check-node-version.sh"
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -84,12 +100,26 @@ runs:
         IMAGE_TAG="${{ inputs.name }}"
         DOCKERFILE_PATH="${{ github.workspace }}/${{ inputs.dockerfile }}"
 
+        PULL_ARGS=()
+        if [[ "${{ inputs.pull }}" == "true" ]]; then
+          PULL_ARGS=(--pull)
+        fi
+
         echo "Building Docker Image: $IMAGE_TAG"
         if [[ -z "${{ inputs.extra_build_args }}" ]]; then
-          docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" .
+          docker build "${PULL_ARGS[@]}" -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" .
         else
-          docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" ${{ inputs.extra_build_args }} .
+          docker build "${PULL_ARGS[@]}" -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" ${{ inputs.extra_build_args }} .
         fi
+
+    - name: Check Node.js Version
+      if: inputs.node-version-check != 'false' && (inputs.mode == 'build-only' || inputs.mode == 'build-and-push' || inputs.mode == 'build-and-deploy')
+      shell: bash
+      env:
+        IMAGE_TAG: ${{ inputs.name }}
+        NODE_VERSION_FLOORS: ${{ inputs.node-version-floors }}
+        NODE_VERSION_ON_FAIL: ${{ inputs.fail-on-vulnerable-node == 'true' && 'error' || 'warn' }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/check-node-version.sh" --image "$IMAGE_TAG"
 
     - name: Push Docker Image
       if: inputs.mode == 'build-and-push' || inputs.mode == 'build-and-deploy'

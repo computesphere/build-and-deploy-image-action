@@ -1,0 +1,3 @@
+# Builds FROM an image that exists only in the local Docker cache (the
+# workflow builds it first), to test the pull input.
+FROM node-version-check-local-base:test

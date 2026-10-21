@@ -146,8 +146,41 @@ This example **deploys a public image** to ComputeSphere.
 | `password`         | Container registry password (for private images)                                                | ✅ Required if `type=private` when building or deploying                                | `''` (empty)       |
 | `dockerfile`       | Path to the Dockerfile                                                                          | ✅ Required if building (`build-only`, `build-and-push`, `build-and-deploy`)            | `Dockerfile`       |
 | `extra_build_args` | Additional build arguments for `docker build`                                                   | ❌ Optional                                                                             | `''` (empty)       |
+| `pull`             | Pull a fresh copy of every base image on each build (`docker build --pull`), so floating tags like `node:22-alpine` pick up security releases. **Recommended: `true`.** Off by default so a Dockerfile that builds `FROM` an image that exists only in the local Docker cache keeps working | ❌ Optional | `false` |
+| `node-version-check` | After building, check the image's Node.js version against the security floor (see below) and warn when it is below. Images without Node.js are skipped. Set `false` to skip the check | ❌ Optional | `true` |
+| `fail-on-vulnerable-node` | Fail the build, before push or deploy, when the Node.js version check finds a version below the floor (or cannot run) instead of warning | ❌ Optional | `false` |
+| `node-version-floors` | Override the floor table: minimum versions, one per release line, separated by spaces or commas (e.g. `22.23.4 24.22.1 26.12.1`) | ❌ Optional | `''` (built-in table) |
 
 > **Note:** If `type` is `public`, `username` and `password` are ignored.
+
+### **Node.js version check**
+
+In the build modes, the action runs `node -v` inside the built image before it pushes or deploys it (no network, nothing else runs). When the version is below the floor, the run shows a warning and the build goes on. Set `fail-on-vulnerable-node: true` to fail the build instead (recommended); `node-version-check: false` turns the check off.
+
+```yaml
+  with:
+    mode: build-and-deploy
+    pull: true                     # refresh floating base tags such as node:22-alpine
+    fail-on-vulnerable-node: true
+```
+
+A cached base image keeps its old Node.js until it is pulled again, so set `pull: true` too unless a base image is built locally in the same job.
+
+The floor:
+
+| Release line | Lowest allowed version |
+| ------------ | ---------------------- |
+| 22.x         | 22.23.4                |
+| 24.x         | 24.22.1                |
+| 26.x         | 26.12.1                |
+| 20.x and older, 23.x, 25.x | none: end of life |
+
+The floor comes from [CVE-2026-111497](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases), a Brotli decoder flaw that is fixed only by a new Node.js release; release lines newer than the table pass. Images without Node.js (for example Go or static sites, distroless or `scratch` images) are skipped. The table lives in [`scripts/check-node-version.sh`](scripts/check-node-version.sh); to run the check on its own:
+
+```sh
+scripts/check-node-version.sh --image my-app:latest
+scripts/check-node-version.sh --version v22.23.4
+```
 
 ---
 

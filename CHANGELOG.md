@@ -9,6 +9,11 @@ ComputeSphere Build and Deploy Image Action follows [Semantic Versioning](https:
 
 ---
 
+## **[Unreleased]**  
+### Added  
+- **Node.js version check**: after building, the action runs `node -v` in the image and warns before push or deploy when it is below the security floor for [CVE-2026-111497](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases) (22.23.4, 24.22.1, 26.12.1; Node.js 20 and older and the odd release lines are flagged too). Images without Node.js are skipped. **In v1 it warns by default and the build goes on; set `fail-on-vulnerable-node: true` to enforce.** New inputs `node-version-check` (default `true`; `false` skips the check), `fail-on-vulnerable-node` (default `false`) and `node-version-floors`.  
+- New input `pull` (default `false`): set `pull: true` to run `docker build --pull`, so floating base tags such as `node:22-alpine` are refreshed on every build instead of reusing a cached, possibly vulnerable base. Recommended; off by default so a Dockerfile that builds `FROM` a local-only image keeps working.  
+
 ## **[v1.0.3] - 2026-06-02**  
 ### Fixed  
 - Deploy step now calls `/v1/deployments/{id}/image`. The ComputeSphere API dropped the `/api` prefix from its versioned endpoints (`/api/v1` → `/v1`), so the previous path returned **404** and failed the **Deploy to ComputeSphere** step.  
