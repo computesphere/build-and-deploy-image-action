@@ -1,0 +1,101 @@
+# Tests the Node.js version floor: the script on its own, and the action
+# failing a build whose image runs an old Node.js.
+name: Node.js version check
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: shellcheck
+        run: shellcheck scripts/check-node-version.sh test/check-node-version.test.sh
+      - name: Floor table and image cases
+        run: bash test/check-node-version.test.sh
+
+  action:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Default: warn, build goes on.
+          - node: 22.23.3
+            check: 'true'
+            enforce: 'false'
+            want: success
+          - node: 22.23.3
+            check: 'true'
+            enforce: 'true'
+            want: failure
+          - node: 24.22.1
+            check: 'true'
+            enforce: 'true'
+            want: success
+          - node: 22.23.3
+            check: 'false'
+            enforce: 'true'
+            want: success
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build an image with Node.js ${{ matrix.node }} (check ${{ matrix.check }}, enforce ${{ matrix.enforce }})
+        id: build
+        uses: ./
+        continue-on-error: true
+        with:
+          mode: build-only
+          name: node-version-check-test:local
+          dockerfile: test/node-version/Dockerfile.fake-node
+          extra_build_args: --build-arg NODE_VERSION=${{ matrix.node }}
+          node-version-check: ${{ matrix.check }}
+          fail-on-vulnerable-node: ${{ matrix.enforce }}
+      - name: The build ended in ${{ matrix.want }}
+        env:
+          GOT: ${{ steps.build.outcome }}
+          WANT: ${{ matrix.want }}
+        run: |
+          if [[ "$GOT" != "$WANT" ]]; then
+            echo "::error::want $WANT, got $GOT"
+            exit 1
+          fi
+          echo "ok: $GOT"
+
+  pull:
+    # pull defaults to false, so a Dockerfile FROM a local-only image builds;
+    # pull: true runs docker build --pull, which must fetch it and so fails.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pull: ''
+            want: success
+          - pull: 'true'
+            want: failure
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build a local-only base image
+        run: docker build -t node-version-check-local-base:test --build-arg NODE_VERSION=24.22.1 -f test/node-version/Dockerfile.fake-node test/node-version
+      - name: Build FROM it (pull ${{ matrix.pull || 'default' }})
+        id: build
+        uses: ./
+        continue-on-error: true
+        with:
+          mode: build-only
+          name: node-version-check-test:local-base
+          dockerfile: test/node-version/Dockerfile.local-base
+          pull: ${{ matrix.pull || 'false' }}
+      - name: The build ended in ${{ matrix.want }}
+        env:
+          GOT: ${{ steps.build.outcome }}
+          WANT: ${{ matrix.want }}
+        run: |
+          if [[ "$GOT" != "$WANT" ]]; then
+            echo "::error::want $WANT, got $GOT"
+            exit 1
+          fi
+          echo "ok: $GOT"

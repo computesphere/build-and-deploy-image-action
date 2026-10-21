@@ -1,0 +1,5 @@
+# A tiny image whose `node -v` prints NODE_VERSION, so the image check can be
+# tested without pulling real Node.js images.
+FROM busybox:1.37
+ARG NODE_VERSION
+RUN printf '#!/bin/sh\necho v%s\n' "$NODE_VERSION" > /bin/node && chmod +x /bin/node
