@@ -32,7 +32,7 @@ jobs:
             check: 'true'
             enforce: 'true'
             want: failure
-          - node: 24.22.1
+          - node: 24.22.3
             check: 'true'
             enforce: 'true'
             want: success
@@ -79,7 +79,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Build a local-only base image
-        run: docker build -t node-version-check-local-base:test --build-arg NODE_VERSION=24.22.1 -f test/node-version/Dockerfile.fake-node test/node-version
+        run: docker build -t node-version-check-local-base:test --build-arg NODE_VERSION=24.22.3 -f test/node-version/Dockerfile.fake-node test/node-version
       - name: Build FROM it (pull ${{ matrix.pull || 'default' }})
         id: build
         uses: ./

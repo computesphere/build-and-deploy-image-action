@@ -149,7 +149,7 @@ This example **deploys a public image** to ComputeSphere.
 | `pull`             | Pull a fresh copy of every base image on each build (`docker build --pull`), so floating tags like `node:22-alpine` pick up security releases. **Recommended: `true`.** Off by default so a Dockerfile that builds `FROM` an image that exists only in the local Docker cache keeps working | ❌ Optional | `false` |
 | `node-version-check` | After building, check the image's Node.js version against the security floor (see below) and warn when it is below. Images without Node.js are skipped. Set `false` to skip the check | ❌ Optional | `true` |
 | `fail-on-vulnerable-node` | Fail the build, before push or deploy, when the Node.js version check finds a version below the floor (or cannot run) instead of warning | ❌ Optional | `false` |
-| `node-version-floors` | Override the floor table: minimum versions, one per release line, separated by spaces or commas (e.g. `22.23.4 24.22.1 26.12.1`) | ❌ Optional | `''` (built-in table) |
+| `node-version-floors` | Override the floor table: minimum versions, one per release line, separated by spaces or commas (e.g. `22.23.5 24.22.3 26.13.1`) | ❌ Optional | `''` (built-in table) |
 
 > **Note:** If `type` is `public`, `username` and `password` are ignored.
 
@@ -170,16 +170,16 @@ The floor:
 
 | Release line | Lowest allowed version |
 | ------------ | ---------------------- |
-| 22.x         | 22.23.4                |
-| 24.x         | 24.22.1                |
-| 26.x         | 26.12.1                |
+| 22.x         | 22.23.5                |
+| 24.x         | 24.22.3                |
+| 26.x         | 26.13.1                |
 | 20.x and older, 23.x, 25.x | none: end of life |
 
-The floor comes from [CVE-2026-111497](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases), a Brotli decoder flaw that is fixed only by a new Node.js release; release lines newer than the table pass. Images without Node.js (for example Go or static sites, distroless or `scratch` images) are skipped. The table lives in [`scripts/check-node-version.sh`](scripts/check-node-version.sh); to run the check on its own:
+The floor comes from the [November 11, 2026 Node.js security release](https://nodejs.org/en/blog/vulnerability/november-2026-security-releases), which also carries the October 21, 2026 fixes ([CVE-2026-111497](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases)). These flaws are fixed only by a new Node.js release; release lines newer than the table pass. Images without Node.js (for example Go or static sites, distroless or `scratch` images) are skipped. The table lives in [`scripts/check-node-version.sh`](scripts/check-node-version.sh); to run the check on its own:
 
 ```sh
 scripts/check-node-version.sh --image my-app:latest
-scripts/check-node-version.sh --version v22.23.4
+scripts/check-node-version.sh --version v22.23.5
 ```
 
 ---

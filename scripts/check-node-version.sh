@@ -18,11 +18,13 @@
 # in between (odd, non-LTS lines and end-of-life lines), fails.
 #
 # Override the table with NODE_VERSION_FLOORS (space- or comma-separated
-# minimum versions), e.g. NODE_VERSION_FLOORS="22.23.4 24.22.1 26.12.1".
+# minimum versions), e.g. NODE_VERSION_FLOORS="22.23.5 24.22.3 26.13.1".
 #
-# Default floor: CVE-2026-111497 (Brotli decoder out-of-bounds write), fixed in
-# 22.23.4, 24.22.1 and 26.12.1; Node.js 20 and older are end of life.
-# https://nodejs.org/en/blog/vulnerability/october-2026-security-releases
+# Default floor: the November 11, 2026 Node.js security release (16 CVEs, 7
+# high), fixed in 22.23.5, 24.22.3 and 26.13.1. It includes the October 21,
+# 2026 fixes (CVE-2026-111497, 22.23.4 / 24.22.1 / 26.12.1). Node.js 20 and
+# older are end of life.
+# https://nodejs.org/en/blog/vulnerability/november-2026-security-releases
 set -euo pipefail
 
 ON_FAIL="${NODE_VERSION_ON_FAIL:-error}"
@@ -37,7 +39,7 @@ problem() {
   exit "$1"
 }
 
-DEFAULT_FLOORS="22.23.4 24.22.1 26.12.1"
+DEFAULT_FLOORS="22.23.5 24.22.3 26.13.1"
 FLOORS="${NODE_VERSION_FLOORS:-$DEFAULT_FLOORS}"
 FLOORS="${FLOORS//,/ }"
 read -r -a FLOOR_LIST <<<"$FLOORS"
