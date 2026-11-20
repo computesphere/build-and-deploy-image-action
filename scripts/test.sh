@@ -8,7 +8,7 @@ work="$(mktemp -d)"
 trap 'kill "${server_pid:-0}" 2>/dev/null || true; rm -rf "$work"' EXIT
 
 cat > "$work/server.py" <<'PY'
-import json, sys
+import json, sys, time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 out = sys.argv[1]
@@ -16,12 +16,16 @@ out = sys.argv[1]
 class Handler(BaseHTTPRequestHandler):
     def do_PATCH(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", "0"))).decode()
+        with open(out + ".log", "a") as f:
+            f.write(self.path + "\n")
         with open(out, "w") as f:
             json.dump({"method": self.command, "path": self.path,
                        "authorization": self.headers.get("Authorization"),
                        "account": self.headers.get("X-Account-ID"),
                        "user_agent": self.headers.get("User-Agent"),
                        "body": json.loads(body)}, f)
+        if "slow" in self.path:
+            time.sleep(3)
         if "refused" in self.path:
             code, answer = 403, {"type": "https://docs.computesphere.com/errors/forbidden", "title": "Forbidden",
                                  "status": 403, "code": "forbidden", "detail": "This change needs approval.",
@@ -99,4 +103,31 @@ fi
 grep -q "deployment_id" "$work/out4.txt" || fail "the missing input is not named"
 [[ ! -e "$work/request.json" ]] || fail "a request was sent with a missing input"
 
-echo "ok: 4 cases"
+# 5. The payload goes in on stdin: the password is never on curl's command
+#    line, where other processes on the runner could read it.
+mkdir -p "$work/bin"
+real_curl="$(command -v curl)"
+cat > "$work/bin/curl" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$@" >> "$work/curl-args.txt"
+exec "$real_curl" "\$@"
+SH
+chmod +x "$work/bin/curl"
+PATH="$work/bin:$PATH" CS_DEPLOYMENT_ID="dep-1" CS_IMAGE_NAME="app:1" CS_REGISTRY_PASSWORD="s3cret-on-stdin" \
+  bash "$here/deploy.sh" > /dev/null || fail "a 200 answer must succeed"
+[[ -s "$work/curl-args.txt" ]] || fail "the curl shim was not used"
+grep -q "s3cret-on-stdin" "$work/curl-args.txt" && fail "the password is on curl's command line"
+[[ "$(got .body.image.password)" == "s3cret-on-stdin" ]] || fail "the password did not arrive"
+
+# 6. An API that does not answer in time fails the step once, with a clear
+#    message, and the request is not sent again.
+: > "$work/request.json.log"
+if CS_API_MAX_TIME=1 CS_DEPLOYMENT_ID="slow" CS_IMAGE_NAME="app:1" bash "$here/deploy.sh" > "$work/out6.txt"; then
+  fail "a timed-out request must fail the step"
+fi
+grep -q "did not answer within 1 seconds" "$work/out6.txt" || fail "the timeout is not reported: $(cat "$work/out6.txt")"
+grep -q "console" "$work/out6.txt" || fail "the timeout message does not say where to check"
+sleep 3
+[[ "$(grep -c slow "$work/request.json.log")" == "1" ]] || fail "the request was sent $(grep -c slow "$work/request.json.log") times, want 1"
+
+echo "ok: 6 cases"

@@ -15,6 +15,7 @@
 #   CS_IMAGE_PROVIDER other | ecr | gcr | ...
 #   CS_REGISTRY_URL   registry endpoint (private images)
 #   CS_REGISTRY_USERNAME, CS_REGISTRY_PASSWORD  registry credentials
+#   CS_API_MAX_TIME   seconds to wait for the API's answer (default 120)
 #
 # An empty registry field is left out of the request: the platform keeps the
 # credentials it has saved when only the image name or tag changes.
@@ -45,15 +46,25 @@ payload=$(jq -n \
 
 echo "Deploying image $CS_IMAGE_NAME to ComputeSphere..."
 
-response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" -X PATCH "$API_URL/deployments/$CS_DEPLOYMENT_ID" \
+# The payload (registry password included) goes in on stdin, never on the
+# command line, where other processes could read it. One attempt, no retry:
+# a deploy sent twice would roll twice.
+MAX_TIME="${CS_API_MAX_TIME:-120}"
+rc=0
+response=$(printf '%s' "$payload" | curl -sS --max-time "$MAX_TIME" -w "\nHTTP_STATUS:%{http_code}" -X PATCH "$API_URL/deployments/$CS_DEPLOYMENT_ID" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $CS_API_TOKEN" \
   -H "X-Account-ID: $CS_ACCOUNT_ID" \
   -H "User-Agent: ${CS_USER_AGENT:-computesphere-deploy-action}" \
-  -d "$payload") || {
+  --data-binary @-) || rc=$?
+if (( rc == 28 )); then
+  echo "Deploy failed: the ComputeSphere API did not answer within ${MAX_TIME} seconds."
+  echo "The deploy may still have been accepted. Check the deployment in the ComputeSphere console before running this job again."
+  exit 1
+elif (( rc != 0 )); then
   echo "Deploy failed: the ComputeSphere API could not be reached."
   exit 1
-}
+fi
 
 status=$(printf '%s' "$response" | sed -n 's/^HTTP_STATUS://p' | tail -n1)
 body=$(printf '%s' "$response" | sed '/^HTTP_STATUS:/d')
